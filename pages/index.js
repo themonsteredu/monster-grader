@@ -144,20 +144,8 @@ export default function App() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      
       setResults(data);
-      const ok = data.results.filter(x => x.ok === true).length;
-      const skip = data.results.filter(x => x.student === "미풀이").length;
-      const solved = data.results.length - skip;
-      const record = {
-        id: Date.now().toString(), date: new Date().toISOString(),
-        student: name || "이름없음", book: SSEN.name,
-        range: `${range.from}~${range.to}`, total: data.results.length,
-        ok, wrong: data.results.filter(x => x.ok === false && x.student !== "미풀이").length,
-        skip, pct: solved > 0 ? Math.round(ok / solved * 100) : 0,
-        results: data.results,
-      };
-      updateHistory([record, ...history].slice(0, 200));
+      setEdited(false);
       setView("result");
     } catch (err) {
       setError(err.message);
@@ -165,36 +153,41 @@ export default function App() {
     setGrading(false);
   };
 
+  // Toggle: 정답 ↔ 오답
+  const [edited, setEdited] = useState(false);
+  const toggleResult = (idx) => {
+    if (!results?.results) return;
+    const r = results.results[idx];
+    const newResults = [...results.results];
+    newResults[idx] = { ...r, ok: !r.ok };
+    setResults({ ...results, results: newResults });
+    setEdited(true);
+  };
+
+  const saveEdited = () => {
+    if (!results?.results) return;
+    const ok = results.results.filter(x => x.ok === true).length;
+    const wrong = results.results.length - ok;
+    const record = {
+      id: Date.now().toString(), date: new Date().toISOString(),
+      student: name || "이름없음", book: SSEN.name,
+      range: `${range.from}~${range.to}`, total: results.results.length,
+      ok, wrong, skip: 0, pct: Math.round(ok / results.results.length * 100),
+      results: results.results,
+    };
+    updateHistory([record, ...history].slice(0, 200));
+    setEdited(false);
+  };
+
   const score = results?.results ? (() => {
     const ok = results.results.filter(r => r.ok === true).length;
-    const wrong = results.results.filter(r => r.ok === false && r.student !== "미풀이").length;
-    const skip = results.results.filter(r => r.student === "미풀이").length;
-    const unk = results.results.filter(r => r.ok == null).length;
-    const solved = results.results.length - skip;
-    return { ok, wrong, skip, unk, solved, pct: solved > 0 ? Math.round(ok / solved * 100) : 0, total: results.results.length };
+    const wrong = results.results.length - ok;
+    const pct = Math.round(ok / results.results.length * 100);
+    return { ok, wrong, pct, total: results.results.length };
   })() : null;
 
-  const ResultDetail = ({ items, title, color, showDetail }) => {
-    if (!items?.length) return null;
-    return (
-      <div style={{ background: S.card, borderRadius: S.radius, padding: "16px 18px", marginBottom: 10, border: `1px solid ${S.line}` }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 10 }}>{title} {items.length}개</div>
-        {showDetail ? items.map(r => (
-          <div key={r.num} style={{ display: "flex", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${S.line}`, fontSize: 13, gap: 10 }}>
-            <span style={{ fontWeight: 700, minWidth: 44 }}>{r.num}</span>
-            <span style={{ color: S.sub }}>정답</span><span style={{ fontWeight: 600 }}>{r.correct}</span>
-            <span style={{ color: S.sub, marginLeft: "auto" }}>학생</span><span style={{ fontWeight: 600, color }}>{r.student}</span>
-          </div>
-        )) : (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-            {items.map(r => (
-              <span key={r.num} style={{ padding: "4px 10px", borderRadius: 6, background: color === S.green ? S.greenSoft : color === S.sub ? S.bg : S.amberSoft, fontSize: 12, fontWeight: 600, color }}>{r.num}</span>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
+  // Find index in results array for toggle
+  const findResultIdx = (num) => results?.results?.findIndex(r => r.num === num) ?? -1;
 
   return (
     <>
@@ -339,22 +332,49 @@ export default function App() {
           {/* RESULT */}
           {view === "result" && score && results && (
             <div className="fadeUp">
+              {/* Score card */}
               <div style={{ background: S.card, borderRadius: S.radius, padding: "28px 22px", marginBottom: 14, border: `1px solid ${S.line}`, textAlign: "center" }}>
                 {name && <div style={{ fontSize: 13, color: S.sub, marginBottom: 8 }}>{name}</div>}
                 <div style={{ fontSize: 56, fontWeight: 800, letterSpacing: "-3px", color: score.pct >= 80 ? S.green : score.pct >= 50 ? S.amber : S.red, lineHeight: 1 }}>{score.pct}</div>
-                <div style={{ fontSize: 13, color: S.sub, marginTop: 6 }}>{score.solved}문제 중 {score.ok}개 정답</div>
-                <div style={{ display: "flex", justifyContent: "center", gap: 20, marginTop: 16 }}>
-                  {[[score.ok,"정답",S.green],[score.wrong,"오답",S.red],[score.skip,"미풀이",S.sub],...(score.unk>0?[[score.unk,"판독불가",S.amber]]:[])].map(([v,l,c])=>(
-                    <div key={l} style={{ textAlign: "center" }}><div style={{ fontSize: 22, fontWeight: 700, color: c }}>{v}</div><div style={{ fontSize: 11, color: S.sub, marginTop: 2 }}>{l}</div></div>
-                  ))}
+                <div style={{ fontSize: 13, color: S.sub, marginTop: 6 }}>{score.total}문제 중 {score.ok}개 정답</div>
+                <div style={{ display: "flex", justifyContent: "center", gap: 24, marginTop: 16 }}>
+                  <div style={{ textAlign: "center" }}><div style={{ fontSize: 22, fontWeight: 700, color: S.green }}>{score.ok}</div><div style={{ fontSize: 11, color: S.sub, marginTop: 2 }}>정답</div></div>
+                  <div style={{ textAlign: "center" }}><div style={{ fontSize: 22, fontWeight: 700, color: S.red }}>{score.wrong}</div><div style={{ fontSize: 11, color: S.sub, marginTop: 2 }}>오답</div></div>
                 </div>
               </div>
-              <ResultDetail items={results.results.filter(r => r.ok === false && r.student !== "미풀이")} title="오답" color={S.red} showDetail />
-              <ResultDetail items={results.results.filter(r => r.ok === true)} title="정답" color={S.green} />
-              <ResultDetail items={results.results.filter(r => r.student === "미풀이")} title="미풀이" color={S.sub} />
-              <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
-                <button onClick={() => setView("history")} style={{ flex: 1, padding: 13, borderRadius: 10, border: `1.5px solid ${S.line}`, background: S.card, color: S.sub, fontSize: 13, fontWeight: 600, fontFamily: S.font, cursor: "pointer" }}>이력</button>
-                <button onClick={() => { setImgs([]); setResults(null); setName(""); setView("grade"); }}
+
+              {!edited && <div style={{ fontSize: 12, color: S.sub, textAlign: "center", marginBottom: 10 }}>탭하면 정답↔오답 변경</div>}
+
+              {/* All results - tappable */}
+              <div style={{ background: S.card, borderRadius: S.radius, padding: "12px 0", marginBottom: 10, border: `1px solid ${S.line}`, overflow: "hidden" }}>
+                {results.results.map((r, i) => (
+                  <div key={i} onClick={() => toggleResult(i)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "10px 18px",
+                      cursor: "pointer", borderBottom: i < results.results.length - 1 ? `1px solid ${S.line}` : "none",
+                      background: r.ok ? S.greenSoft : S.redSoft, transition: "background 0.15s",
+                    }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                      background: r.ok ? S.green : S.red, color: "#fff",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 13, fontWeight: 700,
+                    }}>{r.ok ? "⭕" : "✕"}</div>
+                    <span style={{ fontSize: 13, fontWeight: 700, minWidth: 40, color: S.ink }}>{r.num}</span>
+                    {!r.ok && <span style={{ fontSize: 12, color: S.sub, flex: 1 }}>정답 {r.correct}</span>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Save / Actions */}
+              <div style={{ display: "flex", gap: 10 }}>
+                {edited ? (
+                  <button onClick={saveEdited}
+                    style={{ flex: 1, padding: 13, borderRadius: 10, border: "none", background: S.green, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: S.font, cursor: "pointer" }}>수정 저장</button>
+                ) : (
+                  <button onClick={() => setView("history")} style={{ flex: 1, padding: 13, borderRadius: 10, border: `1.5px solid ${S.line}`, background: S.card, color: S.sub, fontSize: 13, fontWeight: 600, fontFamily: S.font, cursor: "pointer" }}>이력</button>
+                )}
+                <button onClick={() => { setImgs([]); setResults(null); setName(""); setEdited(false); setView("grade"); }}
                   style={{ flex: 2, padding: 13, borderRadius: 10, border: "none", background: S.accent, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: S.font, cursor: "pointer" }}>다음 학생</button>
               </div>
             </div>
@@ -410,13 +430,32 @@ export default function App() {
                   <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>{h.student}</div>
                   <div style={{ fontSize: 48, fontWeight: 800, letterSpacing: "-3px", color: h.pct >= 80 ? S.green : h.pct >= 50 ? S.amber : S.red, lineHeight: 1 }}>{h.pct}</div>
                   <div style={{ fontSize: 12, color: S.sub, marginTop: 6 }}>{h.book} · {h.range}</div>
-                  <div style={{ display: "flex", justifyContent: "center", gap: 18, marginTop: 14 }}>
-                    {[[h.ok,"정답",S.green],[h.wrong,"오답",S.red],[h.skip,"미풀이",S.sub]].map(([v,l,c])=>(<div key={l} style={{ textAlign: "center" }}><div style={{ fontSize: 20, fontWeight: 700, color: c }}>{v}</div><div style={{ fontSize: 11, color: S.sub }}>{l}</div></div>))}
+                  <div style={{ display: "flex", justifyContent: "center", gap: 24, marginTop: 14 }}>
+                    <div style={{ textAlign: "center" }}><div style={{ fontSize: 20, fontWeight: 700, color: S.green }}>{h.ok}</div><div style={{ fontSize: 11, color: S.sub }}>정답</div></div>
+                    <div style={{ textAlign: "center" }}><div style={{ fontSize: 20, fontWeight: 700, color: S.red }}>{h.wrong}</div><div style={{ fontSize: 11, color: S.sub }}>오답</div></div>
                   </div>
                 </div>
-                <ResultDetail items={h.results.filter(r => r.ok === false && r.student !== "미풀이")} title="오답" color={S.red} showDetail />
-                <ResultDetail items={h.results.filter(r => r.ok === true)} title="정답" color={S.green} />
-                <ResultDetail items={h.results.filter(r => r.student === "미풀이")} title="미풀이" color={S.sub} />
+                {/* Wrong */}
+                {(() => { const items = h.results.filter(r => !r.ok); return items.length > 0 && (
+                  <div style={{ background: S.card, borderRadius: S.radius, padding: "16px 18px", marginBottom: 10, border: `1px solid ${S.line}` }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: S.red, marginBottom: 10 }}>오답 {items.length}개</div>
+                    {items.map(r => (
+                      <div key={r.num} style={{ display: "flex", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${S.line}`, fontSize: 13, gap: 8 }}>
+                        <span style={{ fontWeight: 700, minWidth: 40 }}>{r.num}</span>
+                        <span style={{ color: S.sub, fontSize: 12 }}>정답 {r.correct}</span>
+                      </div>
+                    ))}
+                  </div>
+                ); })()}
+                {/* Correct */}
+                {(() => { const items = h.results.filter(r => r.ok === true); return items.length > 0 && (
+                  <div style={{ background: S.card, borderRadius: S.radius, padding: "16px 18px", marginBottom: 10, border: `1px solid ${S.line}` }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: S.green, marginBottom: 10 }}>정답 {items.length}개</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                      {items.map(r => <span key={r.num} style={{ padding: "4px 10px", borderRadius: 6, background: S.greenSoft, fontSize: 12, fontWeight: 600, color: S.green }}>{r.num}</span>)}
+                    </div>
+                  </div>
+                ); })()}
                 <button onClick={() => { updateHistory(history.filter(x => x.id !== h.id)); setView("history"); }}
                   style={{ width: "100%", padding: 12, borderRadius: 10, border: `1.5px solid ${S.line}`, background: "transparent", color: S.sub, fontSize: 13, fontFamily: S.font, cursor: "pointer", marginTop: 6 }}>이 기록 삭제</button>
               </div>
