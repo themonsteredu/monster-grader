@@ -199,29 +199,42 @@ export default function App() {
   return (
     <>
       <Head>
-        <title>Monster 채점</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        <title>더몬스터학원 채점</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="theme-color" content="#f7f8fc" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="theme-color" content="#ffffff" />
+        <meta name="description" content="더몬스터학원 자동 채점 시스템" />
+        <link rel="apple-touch-icon" href="/icon.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       </Head>
-      <div style={{ minHeight: "100vh", background: S.bg, fontFamily: S.font, color: S.ink, WebkitFontSmoothing: "antialiased" }}>
+      <div style={{ minHeight: "100dvh", background: S.bg, fontFamily: S.font, color: S.ink, WebkitFontSmoothing: "antialiased" }}>
         <style jsx global>{`
           * { box-sizing: border-box; margin: 0; padding: 0; }
-          body { background: ${S.bg}; -webkit-tap-highlight-color: transparent; }
+          html, body { height: 100%; background: ${S.bg}; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
           input:focus { outline: none; border-color: ${S.accent} !important; }
+          input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+          input[type=number] { -moz-appearance: textfield; }
           ::placeholder { color: #b0b5c3; }
           @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
           .fadeUp { animation: fadeUp 0.3s ease both; }
           @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+          button { -webkit-appearance: none; }
         `}</style>
 
         {/* NAV */}
         <div style={{ background: S.card, borderBottom: `1px solid ${S.line}`, position: "sticky", top: 0, zIndex: 10 }}>
           <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 16px", display: "flex", alignItems: "center", height: 54 }}>
-            <div style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.3px", flex: 1 }}>
-              <span style={{ color: S.accent }}>M</span>onster
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+              {/* 더몬스터 로고 */}
+              <svg width="28" height="28" viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
+                <circle cx="50" cy="50" r="48" fill="#FF6B1A"/>
+                <ellipse cx="50" cy="48" rx="26" ry="26" fill="white"/>
+                <circle cx="50" cy="48" r="14" fill="#1a1a2e"/>
+                <circle cx="55" cy="43" r="5" fill="white"/>
+              </svg>
+              <span style={{ fontWeight: 800, fontSize: 15, letterSpacing: "-0.3px", color: S.ink }}>더몬스터</span>
             </div>
             <div style={{ display: "flex", gap: 2 }}>
               {[["grade","채점"],["history","이력"],["db","정답"]].map(([k,l]) => (
