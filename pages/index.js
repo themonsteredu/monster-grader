@@ -144,6 +144,21 @@ export default function App() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      
+      // Post-process: fix common AI mistakes
+      if (data.results) {
+        data.results = data.results.map(r => {
+          const s = (r.student || "").trim();
+          // These all mean 미풀이
+          if (!s || s === "__" || s === "—" || s === "-" || s === "없음" || 
+              s === "비어있음" || s === "empty" || s === "blank" || s === "N/A" ||
+              s.match(/^[_\-–—\s]+$/)) {
+            return { ...r, student: "미풀이", ok: false };
+          }
+          return r;
+        });
+      }
+      
       setResults(data);
       // Save history
       const ok = data.results.filter(x => x.ok === true).length;
@@ -213,10 +228,12 @@ export default function App() {
         <style jsx global>{`
           * { box-sizing: border-box; margin: 0; padding: 0; }
           html, body { height: 100%; background: ${S.bg}; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
+          input { box-sizing: border-box; max-width: 100%; }
           input:focus { outline: none; border-color: ${S.accent} !important; }
           input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
           input[type=number] { -moz-appearance: textfield; }
           ::placeholder { color: #b0b5c3; }
+          img { max-width: 100%; }
           @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
           .fadeUp { animation: fadeUp 0.3s ease both; }
           @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
@@ -250,8 +267,8 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ maxWidth: 480, margin: "0 auto", padding: "16px 16px 100px" }}>
-          {error && <div className="fadeUp" style={{ background: S.redSoft, borderRadius: 10, padding: "12px 16px", fontSize: 13, color: S.red, marginBottom: 12, fontWeight: 500 }}>{error}</div>}
+        <div style={{ maxWidth: 480, margin: "0 auto", padding: "16px 16px 100px", overflow: "hidden" }}>
+          {error && <div className="fadeUp" style={{ background: S.redSoft, borderRadius: 10, padding: "12px 16px", fontSize: 13, color: S.red, marginBottom: 12, fontWeight: 500, wordBreak: "break-word", overflowWrap: "anywhere" }}>{error}</div>}
 
           {/* GRADE */}
           {view === "grade" && (
@@ -261,11 +278,11 @@ export default function App() {
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <input value={range.from} onChange={e => setRange(p => ({...p, from: e.target.value}))}
                     placeholder="시작" type="number"
-                    style={{ flex: 1, padding: "11px 14px", border: `1.5px solid ${S.line}`, borderRadius: 10, fontSize: 14, fontFamily: S.font, fontWeight: 600 }} />
-                  <span style={{ color: S.sub }}>~</span>
+                    style={{ flex: 1, minWidth: 0, padding: "11px 14px", border: `1.5px solid ${S.line}`, borderRadius: 10, fontSize: 14, fontFamily: S.font, fontWeight: 600 }} />
+                  <span style={{ color: S.sub, flexShrink: 0 }}>~</span>
                   <input value={range.to} onChange={e => setRange(p => ({...p, to: e.target.value}))}
                     placeholder="끝" type="number"
-                    style={{ flex: 1, padding: "11px 14px", border: `1.5px solid ${S.line}`, borderRadius: 10, fontSize: 14, fontFamily: S.font, fontWeight: 600 }} />
+                    style={{ flex: 1, minWidth: 0, padding: "11px 14px", border: `1.5px solid ${S.line}`, borderRadius: 10, fontSize: 14, fontFamily: S.font, fontWeight: 600 }} />
                 </div>
                 {gradeItems.length > 0 && <div style={{ marginTop: 10, fontSize: 13, color: S.accent, fontWeight: 600 }}>{gradeItems.length}문제</div>}
               </div>
