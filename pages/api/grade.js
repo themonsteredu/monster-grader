@@ -1,52 +1,34 @@
 export const config = { api: { bodyParser: { sizeLimit: '20mb' } } };
 
-// STEP 1: Which problems have answers?
-const DETECT_PROMPT = (nums) => `쎈수학 문제집 사진이야. 학생이 답을 썼는지 확인해줘.
+const PROMPT = (answers) => `너는 수학 학원 선생님이야. 학생이 쎈수학 문제집에 숙제를 풀어왔어.
+사진을 꼼꼼히 보고 각 문제를 채점해줘.
 
-문제번호: ${nums}
-
-# 답이 있다고 판단하는 기준 (이것만 봐!)
-
-## 주관식
-- ( ) 괄호 안에 연필/볼펜 글씨가 있음 → 답 있음
-- ( ) 괄호 안이 비어있음 → 답 없음
-- 동그라미 안에 글씨가 있음 → 답 있음
-
-## 객관식  
-- ( ) 괄호 안에 번호가 쓰여있음 → 답 있음
-- ①②③④⑤ 보기 번호에 동그라미 표시 → 답 있음
-- ①②③④⑤ 보기 번호에 V체크/밑줄 → 답 있음
-
-## 답 없음 판정
-- ( ) 괄호가 비어있으면 → 답 없음!
-- 풀이만 끄적이고 괄호/보기에 표시 안 했으면 → 답 없음!
-- 위 기준에 해당 안 되면 → 답 없음!
-
-JSON만:
-{"answered":["0001","0002"]}`;
-
-// STEP 2: Read answers from specific locations
-const GRADE_PROMPT = (answers) => `학생이 답을 쓴 문제들이야. 답을 읽고 채점해줘.
-
-정답:
+# 정답
 ${answers}
 
-# 답을 읽는 위치 (여기만 봐!)
+# 답 쓰는 방식
 
-## 주관식
-→ ( ) 괄호 안에 쓴 글씨를 읽어
-→ 동그라미 안에 쓴 글씨를 읽어
-→ 괄호/동그라미 바깥의 풀이 과정은 무시!
+1. ( ) 괄호 안에 연필로 답을 씀 → 연필 글씨가 답
+   → 괄호 안이 비어있으면 = 오답처리
+2. (가)(나)(다)(라) 빈칸에 답을 씀 → 빈칸이 비면 오답처리
+3. 보기에 동그라미/V체크 → 체크한 번호가 답
+4. 서술형 풀이 → 풀이 내용 읽기
 
-## 객관식
-→ ( ) 괄호 안에 쓴 번호를 읽어
-→ 또는 ①②③④⑤ 중 동그라미/V 표시된 번호를 읽어
+# 채점법
 
-# 비교
-- "유" = "유한소수", "무" = "무한소수", "순" = "순환소수"
-- 0.5 = 1/2, ② = 2번, 복수답 순서 무관
+각 문제마다:
+1. 학생 연필/볼펜 글씨가 있는지 확인 (인쇄 텍스트는 무시!)
+2. 글씨 없으면 → 오답
+3. 글씨 있으면 → 읽고 정답 비교
 
-JSON만:
+비교: "유"="유한소수", "무"="무한소수", "순"="순환소수", 0.5=1/2, ②=2번
+
+# 주의!
+- 빈 ( )를 ○로 읽지 마!
+- 인쇄 텍스트를 학생 답으로 착각하지 마!
+- 확신 없으면 오답처리!
+
+# 응답 (JSON만!)
 {"results":[{"num":"0001","correct":"정답","student":"학생답","ok":true}]}`;
 
 async function callGPT(apiKey, images, prompt) {
@@ -97,41 +79,9 @@ export default async function handler(req, res) {
   if (!imageList.length || !answers) return res.status(400).json({ error: '이미지와 정답이 필요합니다' });
 
   try {
-    // Parse answer lines to get problem numbers
-    const lines = answers.split('\n').filter(l => l.trim());
-    const allNums = lines.map(l => l.match(/^(\d+)번/)?.[1]).filter(Boolean);
-
-    // STEP 1: Detect which problems have handwriting
-    const detectTxt = await callGPT(apiKey, imageList, DETECT_PROMPT(allNums.join(', ')));
-    const detected = parseJSON(detectTxt);
-    const answeredSet = new Set(detected.answered || []);
-
-    // STEP 2: Grade only answered problems
-    const answeredLines = lines.filter(l => {
-      const n = l.match(/^(\d+)번/)?.[1];
-      return n && answeredSet.has(n);
-    });
-
-    let gradeResults = [];
-
-    if (answeredLines.length > 0) {
-      const gradeTxt = await callGPT(apiKey, imageList, GRADE_PROMPT(answeredLines.join('\n')));
-      const graded = parseJSON(gradeTxt);
-      gradeResults = graded.results || [];
-    }
-
-    // Build final results: answered ones get graded, rest = 미풀이
-    const gradedMap = {};
-    gradeResults.forEach(r => { gradedMap[r.num] = r; });
-
-    const finalResults = allNums.map(num => {
-      if (gradedMap[num]) return gradedMap[num];
-      const line = lines.find(l => l.startsWith(num + '번'));
-      const correct = line ? line.split(': ').slice(1).join(': ') : '';
-      return { num, correct, student: '미풀이', ok: false };
-    });
-
-    return res.status(200).json({ results: finalResults });
+    const txt = await callGPT(apiKey, imageList, PROMPT(answers));
+    const parsed = parseJSON(txt);
+    return res.status(200).json({ results: parsed.results || [] });
   } catch (err) {
     const msg = err.message || '';
     if (msg.includes('Incorrect API key')) return res.status(401).json({ error: 'API 키가 올바르지 않습니다.' });
