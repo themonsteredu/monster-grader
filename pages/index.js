@@ -98,7 +98,7 @@ export default function App() {
   const [db, setDb] = useState([]);
   const [range, setRange] = useState({ from: "", to: "" });
   const [name, setName] = useState("");
-  const [img, setImg] = useState(null);
+  const [imgs, setImgs] = useState([]); // [{base64, preview, kb}]
   const [grading, setGrading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
@@ -132,7 +132,7 @@ export default function App() {
   })();
 
   const doGrade = async () => {
-    if (!img) { setError("사진을 올려주세요"); return; }
+    if (!imgs.length) { setError("사진을 올려주세요"); return; }
     if (!gradeItems.length) { setError("채점 범위를 입력하세요"); return; }
     setError(null); setGrading(true);
     const answers = gradeItems.map(d => `${d.n}번: ${d.a}`).join("\n");
@@ -140,27 +140,12 @@ export default function App() {
       const res = await fetch("/api/grade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: img.base64, answers }),
+        body: JSON.stringify({ images: imgs.map(i => i.base64), answers }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       
-      // Post-process: fix common AI mistakes
-      if (data.results) {
-        data.results = data.results.map(r => {
-          const s = (r.student || "").trim();
-          // These all mean 미풀이
-          if (!s || s === "__" || s === "—" || s === "-" || s === "없음" || 
-              s === "비어있음" || s === "empty" || s === "blank" || s === "N/A" ||
-              s.match(/^[_\-–—\s]+$/)) {
-            return { ...r, student: "미풀이", ok: false };
-          }
-          return r;
-        });
-      }
-      
       setResults(data);
-      // Save history
       const ok = data.results.filter(x => x.ok === true).length;
       const skip = data.results.filter(x => x.student === "미풀이").length;
       const solved = data.results.length - skip;
@@ -288,33 +273,61 @@ export default function App() {
               </div>
 
               <div style={{ background: S.card, borderRadius: S.radius, padding: 18, marginBottom: 12, border: `1px solid ${S.line}` }}>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>숙제 사진</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>숙제 사진</div>
+                  {imgs.length > 0 && <div style={{ fontSize: 12, color: S.accent, fontWeight: 600 }}>{imgs.length}장</div>}
+                </div>
                 <input value={name} onChange={e => setName(e.target.value)} placeholder="학생 이름"
                   style={{ width: "100%", padding: "10px 14px", border: `1.5px solid ${S.line}`, borderRadius: 10, fontSize: 13, fontFamily: S.font, marginBottom: 12 }} />
-                <input ref={fRef} type="file" accept="image/*" capture="environment" onChange={async e => {
-                  const f = e.target.files[0]; if (!f) return; e.target.value = "";
-                  try { setImg(await shrink(f)); setError(null); } catch (err) { setError(err.message); }
+                <input ref={fRef} type="file" accept="image/*" capture="environment" multiple onChange={async e => {
+                  const files = Array.from(e.target.files); if (!files.length) return; e.target.value = "";
+                  try {
+                    const newImgs = [];
+                    for (const f of files) {
+                      newImgs.push(await shrink(f));
+                    }
+                    setImgs(prev => [...prev, ...newImgs]);
+                    setError(null);
+                  } catch (err) { setError(err.message); }
                 }} style={{ display: "none" }} />
 
-                {!img ? (
+                {imgs.length === 0 ? (
                   <div onClick={() => fRef.current?.click()}
                     style={{ border: `2px dashed ${S.line}`, borderRadius: 12, padding: "32px 16px", textAlign: "center", cursor: "pointer" }}>
                     <div style={{ fontSize: 28, opacity: 0.3 }}>+</div>
-                    <div style={{ fontSize: 13, color: S.sub }}>사진 선택</div>
+                    <div style={{ fontSize: 13, color: S.sub }}>사진 선택 (여러 장 가능)</div>
                   </div>
                 ) : (
-                  <div style={{ position: "relative" }}>
-                    <img src={img.preview} style={{ width: "100%", borderRadius: 10, maxHeight: 260, objectFit: "contain", background: "#f9f9fb" }} />
-                    <button onClick={() => setImg(null)} style={{ position: "absolute", top: 8, right: 8, width: 28, height: 28, borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 14, cursor: "pointer", backdropFilter: "blur(4px)" }}>×</button>
+                  <div>
+                    <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
+                      {imgs.map((img, i) => (
+                        <div key={i} style={{ position: "relative", flexShrink: 0 }}>
+                          <img src={img.preview} style={{ width: 120, height: 160, borderRadius: 8, objectFit: "cover", border: `1px solid ${S.line}` }} />
+                          <button onClick={() => setImgs(imgs.filter((_, j) => j !== i))} style={{
+                            position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: "50%",
+                            border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 12, cursor: "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}>×</button>
+                          <div style={{ position: "absolute", bottom: 4, left: 4, background: "rgba(0,0,0,0.5)", color: "#fff", padding: "2px 6px", borderRadius: 4, fontSize: 9 }}>{img.kb}KB</div>
+                        </div>
+                      ))}
+                      {/* Add more button */}
+                      <div onClick={() => fRef.current?.click()}
+                        style={{ width: 120, height: 160, borderRadius: 8, border: `2px dashed ${S.line}`, flexShrink: 0,
+                          display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexDirection: "column", gap: 4 }}>
+                        <div style={{ fontSize: 24, opacity: 0.3 }}>+</div>
+                        <div style={{ fontSize: 11, color: S.sub }}>추가</div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
 
-              <button onClick={doGrade} disabled={grading || !img || !gradeItems.length}
+              <button onClick={doGrade} disabled={grading || !imgs.length || !gradeItems.length}
                 style={{
                   width: "100%", padding: 16, borderRadius: 12, border: "none",
-                  background: (!img || !gradeItems.length || grading) ? S.line : S.accent,
-                  color: (!img || !gradeItems.length || grading) ? S.sub : "#fff",
+                  background: (!imgs.length || !gradeItems.length || grading) ? S.line : S.accent,
+                  color: (!imgs.length || !gradeItems.length || grading) ? S.sub : "#fff",
                   fontSize: 15, fontWeight: 700, fontFamily: S.font, cursor: grading ? "wait" : "pointer",
                 }}>
                 {grading ? "채점 중..." : `채점하기${gradeItems.length ? ` (${gradeItems.length}문제)` : ""}`}
@@ -341,7 +354,7 @@ export default function App() {
               <ResultDetail items={results.results.filter(r => r.student === "미풀이")} title="미풀이" color={S.sub} />
               <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
                 <button onClick={() => setView("history")} style={{ flex: 1, padding: 13, borderRadius: 10, border: `1.5px solid ${S.line}`, background: S.card, color: S.sub, fontSize: 13, fontWeight: 600, fontFamily: S.font, cursor: "pointer" }}>이력</button>
-                <button onClick={() => { setImg(null); setResults(null); setName(""); setView("grade"); }}
+                <button onClick={() => { setImgs([]); setResults(null); setName(""); setView("grade"); }}
                   style={{ flex: 2, padding: 13, borderRadius: 10, border: "none", background: S.accent, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: S.font, cursor: "pointer" }}>다음 학생</button>
               </div>
             </div>
