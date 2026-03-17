@@ -5,34 +5,40 @@ const PROMPT = (answers) => `# 쎈수학 숙제 채점
 정답표:
 ${answers}
 
-# 규칙
+# 핵심 규칙
 
-## 1. 필기 vs 인쇄 구분 (최우선!)
+## 1. 빈 괄호 = 미풀이 (가장 중요!!)
 
-이 사진은 쎈수학 문제집입니다.
+이 교재는 답을 ( ) 괄호 안에 쓰는 형식입니다.
+- 괄호 안에 학생 필기가 없으면 → 무조건 "미풀이"
+- ( ) 만 있고 안이 비어있으면 → "미풀이"
+- 괄호 자체가 인쇄물이므로 괄호만 보고 답이 있다고 판단하지 마세요!
+- ○×문제에서 괄호가 비어있으면 → "미풀이" (절대 ○나 ×로 읽지 마세요!)
 
-인쇄물 (학생 답 아님!!):
-- 문제번호, 문제 본문, 보기, 공식, 수식
-- (가), (나), (다) 라벨, ①②③④⑤ 보기 번호와 내용
-- ( ) 괄호, "유한소수", "무한소수" 등 인쇄 텍스트
-- 깔끔하고 균일한 폰트 = 전부 인쇄물
+## 2. 필기 vs 인쇄
 
-학생 필기 (이것만 답으로 인정):
-- 연필/볼펜 손글씨 (흐릿하거나 삐뚤함)
-- 보기 번호 위 동그라미/V체크
-- 괄호 안 직접 쓴 글씨
-- 직접 쓴 ○ 또는 × 기호
+인쇄물 (답이 아님!):
+- 문제번호(0001 등), 문제 본문, 수식, 보기
+- ( ) 괄호 자체, (가)(나)(다) 라벨
+- 깔끔한 활자체 텍스트 전부
 
-⚠️ 인쇄된 보기가 있어도 학생 필기 없으면 "미풀이"!
+학생 필기 (이것만 답):
+- 연필/볼펜 손글씨 (삐뚤하거나 흐릿)
+- 괄호 안에 직접 쓴 글씨 (유, 무, 순, ○, × 등)
+- 문제 옆 빈칸에 쓴 숫자/수식
+- 보기에 동그라미/V체크
 
-## 2. 판정
-기본값 = "미풀이". 확실한 필기만 답으로 인정.
+## 3. 채점 방식
+- 기본값 = "미풀이"
+- 확실한 손글씨가 있을 때만 답으로 인정
+- 같은 값 = 정답 (0.5=1/2, ②=2번, "유"="유한소수")
+- 의심스러우면 → "미풀이"
 
-## 3. 채점
-같은 값 = 정답 (0.5=1/2, ②=2번). 복수답 순서 무관.
+## 응답 (JSON만, 다른 텍스트 절대 금지!)
+{"results":[{"num":"0001","correct":"정답","student":"학생답","ok":true}]}
 
-## 응답 (JSON만!)
-{"results":[{"num":"0001","correct":"정답","student":"학생답","ok":true}]}`;
+student: 학생 필기 그대로. 미풀이면 반드시 "미풀이". 판독불가면 "판독불가".
+ok: true=정답, false=오답또는미풀이, null=판독불가`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
@@ -64,7 +70,17 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    if (data.error) return res.status(500).json({ error: data.error.message });
+    
+    if (!response.ok || data.error) {
+      const msg = data.error?.message || `API 오류 (${response.status})`;
+      if (msg.includes('Incorrect API key')) {
+        return res.status(401).json({ error: 'API 키가 올바르지 않습니다. Vercel 환경변수를 확인하세요.' });
+      }
+      if (msg.includes('insufficient_quota') || msg.includes('exceeded')) {
+        return res.status(402).json({ error: 'OpenAI 크레딧이 부족합니다. platform.openai.com에서 충전하세요.' });
+      }
+      return res.status(500).json({ error: msg });
+    }
 
     const txt = data.choices?.[0]?.message?.content || '';
     const clean = txt.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
