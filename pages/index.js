@@ -131,6 +131,7 @@ export default function App() {
     return [];
   })();
 
+  // AI Grading
   const doGrade = async () => {
     if (!imgs.length) { setError("사진을 올려주세요"); return; }
     if (!gradeItems.length) { setError("채점 범위를 입력하세요"); return; }
@@ -276,9 +277,7 @@ export default function App() {
                   const files = Array.from(e.target.files); if (!files.length) return; e.target.value = "";
                   try {
                     const newImgs = [];
-                    for (const f of files) {
-                      newImgs.push(await shrink(f));
-                    }
+                    for (const f of files) newImgs.push(await shrink(f));
                     setImgs(prev => [...prev, ...newImgs]);
                     setError(null);
                   } catch (err) { setError(err.message); }
@@ -291,26 +290,15 @@ export default function App() {
                     <div style={{ fontSize: 13, color: S.sub }}>사진 선택 (여러 장 가능)</div>
                   </div>
                 ) : (
-                  <div>
-                    <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
-                      {imgs.map((img, i) => (
-                        <div key={i} style={{ position: "relative", flexShrink: 0 }}>
-                          <img src={img.preview} style={{ width: 120, height: 160, borderRadius: 8, objectFit: "cover", border: `1px solid ${S.line}` }} />
-                          <button onClick={() => setImgs(imgs.filter((_, j) => j !== i))} style={{
-                            position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: "50%",
-                            border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 12, cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}>×</button>
-                          <div style={{ position: "absolute", bottom: 4, left: 4, background: "rgba(0,0,0,0.5)", color: "#fff", padding: "2px 6px", borderRadius: 4, fontSize: 9 }}>{img.kb}KB</div>
-                        </div>
-                      ))}
-                      {/* Add more button */}
-                      <div onClick={() => fRef.current?.click()}
-                        style={{ width: 120, height: 160, borderRadius: 8, border: `2px dashed ${S.line}`, flexShrink: 0,
-                          display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexDirection: "column", gap: 4 }}>
-                        <div style={{ fontSize: 24, opacity: 0.3 }}>+</div>
-                        <div style={{ fontSize: 11, color: S.sub }}>추가</div>
+                  <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
+                    {imgs.map((im, i) => (
+                      <div key={i} style={{ position: "relative", flexShrink: 0 }}>
+                        <img src={im.preview} style={{ width: 120, height: 160, borderRadius: 8, objectFit: "cover", border: `1px solid ${S.line}` }} />
+                        <button onClick={() => setImgs(imgs.filter((_, j) => j !== i))} style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
                       </div>
+                    ))}
+                    <div onClick={() => fRef.current?.click()} style={{ width: 120, height: 160, borderRadius: 8, border: `2px dashed ${S.line}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexDirection: "column", gap: 4 }}>
+                      <div style={{ fontSize: 24, opacity: 0.3 }}>+</div>
                     </div>
                   </div>
                 )}
@@ -343,7 +331,7 @@ export default function App() {
                 </div>
               </div>
 
-              {!edited && <div style={{ fontSize: 12, color: S.sub, textAlign: "center", marginBottom: 10 }}>탭하면 정답↔오답 변경</div>}
+              <div style={{ fontSize: 12, color: S.sub, textAlign: "center", marginBottom: 10 }}>틀린 거 있으면 탭해서 수정</div>
 
               {/* All results - tappable */}
               <div style={{ background: S.card, borderRadius: S.radius, padding: "12px 0", marginBottom: 10, border: `1px solid ${S.line}`, overflow: "hidden" }}>
@@ -368,12 +356,10 @@ export default function App() {
 
               {/* Save / Actions */}
               <div style={{ display: "flex", gap: 10 }}>
-                {edited ? (
-                  <button onClick={saveEdited}
-                    style={{ flex: 1, padding: 13, borderRadius: 10, border: "none", background: S.green, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: S.font, cursor: "pointer" }}>수정 저장</button>
-                ) : (
-                  <button onClick={() => setView("history")} style={{ flex: 1, padding: 13, borderRadius: 10, border: `1.5px solid ${S.line}`, background: S.card, color: S.sub, fontSize: 13, fontWeight: 600, fontFamily: S.font, cursor: "pointer" }}>이력</button>
-                )}
+                <button onClick={saveEdited}
+                  style={{ flex: 1, padding: 13, borderRadius: 10, border: "none", background: S.green, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: S.font, cursor: "pointer" }}>
+                  {edited ? "수정 저장" : "저장"}
+                </button>
                 <button onClick={() => { setImgs([]); setResults(null); setName(""); setEdited(false); setView("grade"); }}
                   style={{ flex: 2, padding: 13, borderRadius: 10, border: "none", background: S.accent, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: S.font, cursor: "pointer" }}>다음 학생</button>
               </div>
