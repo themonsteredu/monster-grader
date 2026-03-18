@@ -1,4 +1,4 @@
- export const config = { api: { bodyParser: { sizeLimit: ‘20mb’ } } };
+export const config = { api: { bodyParser: { sizeLimit: ‘20mb’ } } };
 
 // Chain of Thought 프롬프트: 추출 → 비교 → 판정
 const PROMPT = (answers) => `너는 꼼꼼한 수학 선생님이야. 학생이 쎈수학 문제집에 푼 숙제를 채점해야 해.
@@ -102,4 +102,3 @@ return res.status(200).json({ results: finalResults });
 return res.status(500).json({ error: err.message || ‘알 수 없는 오류’ });
 }
 }
-     
