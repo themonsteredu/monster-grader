@@ -53,7 +53,7 @@ answers: [
 };
 
 // ═══ Utils ═══
-function shrink(file, maxW = 1600, q = 0.85) {
+function shrink(file, maxW = 2400, q = 0.92) {
 return new Promise((res, rej) => {
 const r = new FileReader();
 r.onload = e => {
@@ -318,7 +318,12 @@ return (
             </div>
           </div>
 
-          <div style={{ fontSize: 12, color: S.sub, textAlign: "center", marginBottom: 10 }}>틀린 거 있으면 탭해서 수정</div>
+          {(() => {
+            const lowCount = results.results.filter(r => r.confidence === "low").length;
+            return lowCount > 0
+              ? <div style={{ fontSize: 12, color: S.amber, textAlign: "center", marginBottom: 10, fontWeight: 600 }}>확인 필요 {lowCount}개 (탭해서 수정)</div>
+              : <div style={{ fontSize: 12, color: S.sub, textAlign: "center", marginBottom: 10 }}>틀린 거 있으면 탭해서 수정</div>;
+          })()}
 
           {/* All results - tappable */}
           <div style={{ background: S.card, borderRadius: S.radius, padding: "12px 0", marginBottom: 10, border: `1px solid ${S.line}`, overflow: "hidden" }}>
@@ -327,16 +332,22 @@ return (
                 style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "10px 18px",
                   cursor: "pointer", borderBottom: i < results.results.length - 1 ? `1px solid ${S.line}` : "none",
-                  background: r.ok ? S.greenSoft : S.redSoft, transition: "background 0.15s",
+                  background: r.confidence === "low" ? S.amberSoft : r.ok ? S.greenSoft : S.redSoft, transition: "background 0.15s",
                 }}>
                 <div style={{
                   width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                  background: r.ok ? S.green : S.red, color: "#fff",
+                  background: r.confidence === "low" ? S.amber : r.ok ? S.green : S.red, color: "#fff",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 13, fontWeight: 700,
-                }}>{r.ok ? "⭕" : "✕"}</div>
-                <span style={{ fontSize: 13, fontWeight: 700, minWidth: 40, color: S.ink }}>{r.num}</span>
-                {!r.ok && <span style={{ fontSize: 12, color: S.sub, flex: 1 }}>정답 {r.correct}</span>}
+                }}>{r.confidence === "low" ? "?" : r.ok ? "O" : "X"}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: S.ink }}>{r.num}</span>
+                    {r.student && r.student !== "미작성" && <span style={{ fontSize: 11, color: S.sub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.student}</span>}
+                  </div>
+                  {!r.ok && <div style={{ fontSize: 11, color: S.sub, marginTop: 2 }}>정답 {r.correct}</div>}
+                </div>
+                {r.confidence === "low" && <span style={{ fontSize: 10, color: S.amber, fontWeight: 700, flexShrink: 0 }}>확인</span>}
               </div>
             ))}
           </div>

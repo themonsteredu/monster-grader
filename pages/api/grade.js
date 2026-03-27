@@ -1,31 +1,138 @@
 export const config = { api: { bodyParser: { sizeLimit: '20mb' } } };
 
-// Chain of Thought 프롬프트: 추출 → 비교 → 판정
-const PROMPT = (answers) => `너는 꼼꼼한 수학 선생님이야. 학생이 쎈수학 문제집에 푼 숙제를 채점해야 해.
+// ═══ 2-Pass 프롬프트: 추출 → 비교 → 신뢰도 판정 ═══
+const PROMPT = (answers) => `너는 쎈수학 문제집 채점 전문 AI야. 학생이 손으로 쓴 답안을 정확히 읽어내는 것이 가장 중요한 일이야.
 
 # 정답 데이터
-
 ${answers}
 
-# 채점 지침
+# 채점 절차 (반드시 순서대로)
 
-1. [답안 위치 파악] ( ) 괄호 안, (가)(나) 빈칸, 보기 객관식 번호, 서술형 풀이 영역을 먼저 찾아.
-1. [손글씨 인식] 인쇄된 문제 텍스트는 무시하고, 학생이 연필이나 펜으로 직접 쓴 흔적만 '학생 답'으로 추출해.
-1. [유연한 채점] "유"="유한소수", 0.5=1/2, ②=2번 등 수학적으로 완전히 동일한 의미면 정답 처리해.
+## 1단계: 문제 번호 매핑
+- 이미지에서 인쇄된 문제 번호(0001, 0002 등)를 먼저 모두 찾아.
+- 각 문제 번호 옆이나 아래에 있는 답안 영역을 식별해.
 
-# 출력 형식
+## 2단계: 손글씨 추출 (가장 중요!)
+- 인쇄된 텍스트(문제, 보기, 지문)는 절대 학생 답으로 읽지 마.
+- 학생이 연필/펜/볼펜으로 직접 쓴 흔적만 추출해.
+- 손글씨 특징: 인쇄체보다 불규칙, 약간 기울어짐, 필기 흔적, 지우개 자국 가능
+- 답안 위치 우선순위:
+  (1) ( ) 괄호 안에 쓴 답
+  (2) 객관식 번호에 동그라미/체크 표시
+  (3) (가)(나)(다)(라) 빈칸에 쓴 답
+  (4) 서술형 풀이 영역
+  (5) 문제 옆 여백에 쓴 답
+- 답을 못 찾겠으면 null로 표시해. 추측하지 마.
 
-반드시 아래 JSON 배열 형식으로만 대답해. (마크다운 백틱 없이 순수 JSON만)
+## 3단계: 정답 비교 (유연하게)
+- 동일한 의미면 정답 처리:
+  · "유" = "유한소수", "무" = "무한소수", "순" = "순환소수"
+  · ② = 2번 = 2, ①③ = 1번3번 = ①, ③
+  · 0.5 = 1/2 = 2분의1
+  · ○ = O = 맞다 = 참, × = X = 틀리다 = 거짓
+  · 분수 표기: 4/11 = 11분의4
+- 하위 문제 (가)(나)(다)(라): 모든 하위 답이 맞아야 정답
+
+## 4단계: 신뢰도 평가
+각 문제에 대해 confidence를 매겨:
+- "high": 손글씨가 명확히 보이고, 정답 비교도 확실
+- "medium": 글씨가 약간 불확실하지만 판독 가능
+- "low": 글씨가 흐리거나 모호해서 확신이 없음
+
+# 출력 형식 (순수 JSON만, 마크다운 없이)
 {
-"results": [
-{
-"num": "0001",
-"extracted_answer": "이미지에서 찾아낸 학생의 손글씨 답 (없으면 null)",
-"reasoning": "정답 데이터와 추출한 학생 답을 비교하는 논리적 과정 설명",
-"is_correct": true
-}
-]
+  "results": [
+    {
+      "num": "0001",
+      "extracted_answer": "이미지에서 읽어낸 학생 답 (없으면 null)",
+      "reasoning": "인쇄 텍스트와 손글씨를 어떻게 구분했고, 왜 이 답이라고 판단했는지",
+      "is_correct": true,
+      "confidence": "high"
+    }
+  ]
 }`;
+
+// ═══ 재검증 프롬프트 (low confidence 문제만) ═══
+const RECHECK_PROMPT = (items) => `아래 문제들의 손글씨 답안을 다시 한번 아주 꼼꼼하게 확인해줘.
+이전에 신뢰도가 낮다고 판단된 문제들이야. 이번에는 더 신중하게 봐줘.
+
+주의사항:
+- 인쇄된 텍스트는 절대 학생 답으로 읽지 마
+- 손글씨만 추출해
+- 이전 판단에 편향되지 말고 처음부터 다시 봐
+
+# 재검증 대상
+${items.map(i => `${i.num}번 정답: ${i.correct} / 이전 추출: ${i.extracted_answer}`).join('\n')}
+
+# 출력 형식 (순수 JSON만)
+{
+  "results": [
+    {
+      "num": "0001",
+      "extracted_answer": "다시 읽어낸 학생 답 (없으면 null)",
+      "reasoning": "재확인 과정 설명",
+      "is_correct": true,
+      "confidence": "high"
+    }
+  ]
+}`;
+
+// ═══ Gemini API 호출 헬퍼 ═══
+async function callGemini(apiKey, parts, temperature = 0) {
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=' + apiKey;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: {
+        temperature,
+        maxOutputTokens: 16384,
+        responseMimeType: 'application/json',
+        thinkingConfig: { thinkingBudget: 8192 }
+      }
+    }),
+  });
+  const data = await response.json();
+  if (data.error) throw new Error(data.error.message || 'Gemini API 오류');
+  // Gemini thinking mode: find the text part (not the thought part)
+  const candidate = data.candidates[0];
+  const textPart = candidate.content.parts.find(p => p.text !== undefined);
+  if (!textPart) throw new Error('Gemini 응답에서 텍스트를 찾을 수 없습니다');
+  return JSON.parse(textPart.text);
+}
+
+// ═══ 답안 정규화 (서버사이드 비교용) ═══
+function normalizeAnswer(s) {
+  if (!s || s === 'null') return '';
+  return String(s)
+    .trim()
+    .replace(/\s+/g, '')
+    // 원 숫자 → 일반 숫자
+    .replace(/①/g, '1').replace(/②/g, '2').replace(/③/g, '3')
+    .replace(/④/g, '4').replace(/⑤/g, '5')
+    // ○× 통일
+    .replace(/O|o|맞다|참/g, '○')
+    .replace(/X|x|틀리다|거짓/g, '×')
+    // 축약형 통일
+    .replace(/유한소수/g, '유').replace(/무한소수/g, '무').replace(/순환소수/g, '순')
+    // 번 제거
+    .replace(/번/g, '')
+    .toLowerCase();
+}
+
+// ═══ 서버사이드 정답 검증 (AI 결과 보정) ═══
+function verifyAnswer(studentRaw, correctRaw) {
+  const student = normalizeAnswer(studentRaw);
+  const correct = normalizeAnswer(correctRaw);
+  if (!student) return null; // 답 없음 → AI 판단 유지
+  if (student === correct) return true;
+  // 쉼표 구분 답안 (순서 무관 비교)
+  const sParts = student.split(',').map(s => s.trim()).sort();
+  const cParts = correct.split(',').map(s => s.trim()).sort();
+  if (sParts.length === cParts.length && sParts.every((v, i) => v === cParts[i])) return true;
+  return null; // 확실하지 않으면 AI 판단 유지
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
@@ -38,49 +145,7 @@ export default async function handler(req, res) {
   if (!imageList.length || !answers) return res.status(400).json({ error: '이미지와 정답이 필요합니다' });
 
   try {
-    // Build parts: images + prompt
-    const parts = [];
-    for (const img of imageList) {
-      parts.push({ inlineData: { mimeType: 'image/jpeg', data: img } });
-    }
-    parts.push({ text: PROMPT(answers) });
-
-    // Gemini API 호출 (JSON 모드 강제)
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=' + apiKey;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 8192,
-          responseMimeType: 'application/json'
-        }
-      }),
-    });
-
-    const data = await response.json();
-
-    // 에러 처리
-    if (data.error) {
-      return res.status(500).json({ error: data.error.message || 'Gemini API 오류' });
-    }
-
-    // 깔끔한 파싱 (JSON 모드이므로 한 줄로 끝)
-    const contentText = data.candidates[0].content.parts[0].text;
-    const parsed = JSON.parse(contentText);
-
-    // 프론트엔드 형식에 맞게 변환 (extracted_answer → student, is_correct → ok)
-    const results = parsed.results.map(r => ({
-      num: r.num,
-      correct: r.correct || '',
-      student: r.extracted_answer || '오답',
-      ok: r.is_correct === true,
-    }));
-
-    // 정답 데이터에서 correct 값 매칭
+    // 정답 맵 구축
     const answerLines = answers.split('\n').filter(l => l.trim());
     const answerMap = {};
     for (const line of answerLines) {
@@ -88,10 +153,66 @@ export default async function handler(req, res) {
       if (match) answerMap[match[1]] = match[2].trim();
     }
 
+    // ═══ 1차 채점 ═══
+    const imageParts = imageList.map(img => ({
+      inlineData: { mimeType: 'image/jpeg', data: img }
+    }));
+    const parts1 = [...imageParts, { text: PROMPT(answers) }];
+    const parsed = await callGemini(apiKey, parts1);
+
+    // 결과 변환 + 서버사이드 검증
+    let results = parsed.results.map(r => {
+      const correct = answerMap[r.num] || '';
+      const serverVerify = verifyAnswer(r.extracted_answer, correct);
+      return {
+        num: r.num,
+        correct,
+        student: r.extracted_answer || null,
+        ok: serverVerify !== null ? serverVerify : (r.is_correct === true),
+        confidence: r.confidence || 'medium',
+        reasoning: r.reasoning || '',
+      };
+    });
+
+    // ═══ 2차 재검증 (low confidence 문제만) ═══
+    const lowConfidence = results.filter(r => r.confidence === 'low');
+    if (lowConfidence.length > 0 && lowConfidence.length <= 20) {
+      const recheckItems = lowConfidence.map(r => ({
+        num: r.num,
+        correct: r.correct,
+        extracted_answer: r.student,
+      }));
+      const parts2 = [...imageParts, { text: RECHECK_PROMPT(recheckItems) }];
+      try {
+        const recheck = await callGemini(apiKey, parts2, 0.1);
+        // 재검증 결과 병합
+        const recheckMap = {};
+        for (const r of recheck.results) {
+          recheckMap[r.num] = r;
+        }
+        results = results.map(r => {
+          if (r.confidence !== 'low' || !recheckMap[r.num]) return r;
+          const rc = recheckMap[r.num];
+          const serverVerify = verifyAnswer(rc.extracted_answer, r.correct);
+          return {
+            ...r,
+            student: rc.extracted_answer || r.student,
+            ok: serverVerify !== null ? serverVerify : (rc.is_correct === true),
+            confidence: rc.confidence === 'low' ? 'low' : 'medium',
+            reasoning: rc.reasoning || r.reasoning,
+            rechecked: true,
+          };
+        });
+      } catch (e) {
+        // 재검증 실패해도 1차 결과는 유지
+        console.error('Recheck failed:', e.message);
+      }
+    }
+
+    // student null → 표시용 텍스트
     const finalResults = results.map(r => ({
       ...r,
-      correct: answerMap[r.num] || r.correct,
-      student: r.student === null ? '오답' : r.student,
+      student: r.student === null ? '미작성' : r.student,
     }));
 
     return res.status(200).json({ results: finalResults });
