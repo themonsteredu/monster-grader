@@ -95,10 +95,23 @@ async function callGemini(apiKey, parts, temperature = 0) {
   });
   const data = await response.json();
   if (data.error) throw new Error(data.error.message || 'Gemini API 오류');
-  // Gemini thinking mode: find the text part (not the thought part)
-  const candidate = data.candidates[0];
-  const textPart = candidate.content.parts.find(p => p.text !== undefined);
-  if (!textPart) throw new Error('Gemini 응답에서 텍스트를 찾을 수 없습니다');
+
+  const candidate = data.candidates?.[0];
+  if (!candidate?.content?.parts) {
+    const reason = candidate?.finishReason || 'unknown';
+    throw new Error(`Gemini 응답 없음 (finishReason: ${reason})`);
+  }
+
+  // Thinking mode: thought 파트는 { thought: true, text: "..." } 형태
+  // 실제 응답 파트는 { text: "..." } (thought 속성 없음)
+  const contentParts = candidate.content.parts;
+  const textPart = contentParts.find(p => p.text !== undefined && !p.thought);
+  if (!textPart) {
+    // thinking 파트만 있을 수 있음 - fallback으로 마지막 text 파트 사용
+    const lastText = [...contentParts].reverse().find(p => p.text !== undefined);
+    if (!lastText) throw new Error('Gemini 응답에서 텍스트를 찾을 수 없습니다');
+    return JSON.parse(lastText.text);
+  }
   return JSON.parse(textPart.text);
 }
 
