@@ -206,18 +206,33 @@ return (
 <div style={{ minHeight: "100dvh", background: S.bg, fontFamily: S.font, color: S.ink, WebkitFontSmoothing: "antialiased" }}>
 <style jsx global>{`* { box-sizing: border-box; margin: 0; padding: 0; } html, body { height: 100%; background: ${S.bg}; -webkit-tap-highlight-color: transparent; overflow-x: hidden; } input { box-sizing: border-box; max-width: 100%; } input:focus { outline: none; border-color: ${S.accent} !important; } input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; } input[type=number] { -moz-appearance: textfield; } ::placeholder { color: #b0b5c3; } img { max-width: 100%; } @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } } .fadeUp { animation: fadeUp 0.3s ease both; } @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} } button { -webkit-appearance: none; }`}</style>
 
+    {/* HERO HEADER */}
+    <div style={{ background: "#1e1e3a", padding: "32px 24px 28px" }}>
+      <div style={{ maxWidth: 480, margin: "0 auto" }}>
+        <div style={{ letterSpacing: "0.35em", fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>THE MONSTER</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", lineHeight: 1.5, marginBottom: 6 }}>
+          과정 중심 학습관리,<br />성장을 이끄는 더몬스터학원의 교육 이야기
+        </div>
+        <div style={{ width: 40, height: 3, background: "#FF6B1A", borderRadius: 2, marginBottom: 20 }} />
+        <div style={{ fontSize: 14, fontWeight: 400, color: "rgba(255,255,255,0.7)", lineHeight: 1.8 }}>
+          안녕하세요, 더몬스터학원입니다.<br />
+          이번 소식지에서는 수업 흐름과 학습 관리,<br />
+          학부모님께 도움이 될 교육 소식을 전해드립니다.
+        </div>
+      </div>
+    </div>
+
     {/* NAV */}
     <div style={{ background: S.card, borderBottom: `1px solid ${S.line}`, position: "sticky", top: 0, zIndex: 10 }}>
-      <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 16px", display: "flex", alignItems: "center", height: 54 }}>
+      <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 16px", display: "flex", alignItems: "center", height: 48 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-          {/* 더몬스터 로고 */}
-          <svg width="28" height="28" viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
+          <svg width="22" height="22" viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
             <circle cx="50" cy="50" r="48" fill="#FF6B1A"/>
             <ellipse cx="50" cy="48" rx="26" ry="26" fill="white"/>
             <circle cx="50" cy="48" r="14" fill="#1a1a2e"/>
             <circle cx="55" cy="43" r="5" fill="white"/>
           </svg>
-          <span style={{ fontWeight: 800, fontSize: 15, letterSpacing: "-0.3px", color: S.ink }}>더몬스터</span>
+          <span style={{ fontWeight: 800, fontSize: 13, color: S.ink }}>더몬스터</span>
         </div>
         <div style={{ display: "flex", gap: 2 }}>
           {[["grade","채점"],["history","이력"],["db","정답"]].map(([k,l]) => (
