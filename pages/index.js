@@ -211,7 +211,7 @@ return (
       <div style={{ maxWidth: 480, margin: "0 auto" }}>
         <div style={{ letterSpacing: "0.35em", fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>THE MONSTER</div>
         <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", lineHeight: 1.5, marginBottom: 6, wordBreak: "keep-all", overflowWrap: "break-word" }}>
-          과정 중심 학습관리,<br />성장을 이끄는 더몬스터학원의 교육 이야기
+          과정 중심 학습관리,<br />성장을 이끄는 더몬스터학원의<br />교육 이야기
         </div>
         <div style={{ width: 40, height: 3, background: "#FF6B1A", borderRadius: 2, marginBottom: 20 }} />
         <div style={{ fontSize: 14, fontWeight: 400, color: "rgba(255,255,255,0.7)", lineHeight: 1.8 }}>
